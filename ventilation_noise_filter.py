@@ -6,9 +6,9 @@ from bmesh.types import BMVert
 import numpy as np
 from math import *
 
-# This plugin adds a mesh object which is created based on research article
+# This plugin adds a mesh object which is created based on research paper
 # "Broadband Acoustic Ventilation Barriers". The purpose is to cancel out
-# audible noise in ventilation channels.
+# audible noise in ventilation channels for a specific frequency range.
 # https://www.researchgate.net/publication/340573606_Broadband_Acoustic_Ventilation_Barriers
 
 # Constants
@@ -24,71 +24,63 @@ s1 = 2.2
 s2 = 3.2
 p = -2.4
 
-steps = 64
-r_step = abs(d/2 - D/2) / steps
+steps = 128
 
 # Start values
 r = d/2
 r2 = D/2
+
+# Helix consists of two horn-like helices and one fixed-pitch helix
+horn_helix_len = abs(s1 - s2)
+fixed_helix_len = abs(-s0 - s0)
+tot_helix_len = horn_helix_len * 2 + fixed_helix_len
+
+# Z-values for helix part endpoints
+horn_helix_top = -(e ** s1)
+fixed_helix_top = a*(s0)
+horn_helix2_top = (e ** s2)
+
 verts = []
 faces = []
 
-# Horn-like helix layer1
-s_step = abs(s1 - s2) / steps
-s = s2
-cur_vert = 0
-for i in range(steps):
-    verts.append((
-        (r * sin(-w * s - p)),
-        (r * cos(-w * s - p)),
-        -(e ** s)))
-    verts.append((
-        (r2 * sin(-w * s - p)),
-        (r2 * cos(-w * s - p)),
-        -(e ** s)))
+z = 0
+s_bottom = s2   # Buttom helix start value
+s_middle = -s0  # Middle helix start value
+s_top = s1      # Top helix start value
+s_step = tot_helix_len / steps
+for step in range(steps+3):
+    # Create bottom horn-like helix
+    if (z := -(e ** s_bottom)) <= horn_helix_top:
+        print(f"First helix with z = {z} step={step}")
+        x = (r * sin(-w * s_bottom - p))
+        y = (r * cos(-w * s_bottom - p))
+        x2 = (r2 * sin(-w * s_bottom - p))
+        y2 = (r2 * cos(-w * s_bottom - p))
+        s_bottom -= s_step
+    # Create middle fixed-pitch helix
+    elif (z := (a * s_middle)) <= fixed_helix_top:
+        print(f"Second helix with z = {z} step={step}")
+        x = (r * sin(w * s_middle))
+        y = (r * cos(w * s_middle))
+        x2 = (r2 * sin(w * s_middle))
+        y2 = (r2 * cos(w * s_middle))
+        s_middle += s_step
+    # Create top horn-like helix
+    elif z <= horn_helix2_top:
+        print(f"Last helix with z = {z} step={step}")
+        x = (r * sin(w * s_top + p))
+        y = (r * cos(w * s_top + p))
+        x2 = (r2 * sin(w * s_top + p))
+        y2 = (r2 * cos(w * s_top + p))
+        z = (e ** s_top)
+        s_top += s_step
+
+    # Add vertices for inner and outer part of helix
+    verts.append((x,y,z))
+    verts.append((x2,y2,z))
     cur_vert = len(verts)-1
     if cur_vert >= 3:
-        faces.append((cur_vert-3, cur_vert-2, cur_vert, cur_vert-1))
-
-    # print(f"Vert added: {verts[i]}, s={s}")
-    s -= s_step
-
-
-# Middle fix-pitch helix layer
-s = -s0
-s_step = abs(-s0 - s0) / steps
-for i in range(steps, steps*2):
-    verts.append((
-        (r * sin(w * s)),
-        (r * cos(w * s)),
-        (a * s)))
-    verts.append((
-        (r2 * sin(w * s)),
-        (r2 * cos(w * s)),
-        (a * s)))
-    cur_vert = len(verts)-1
-    if cur_vert >= 3:
-        faces.append((cur_vert-3, cur_vert-2, cur_vert, cur_vert-1))
-
-    s += s_step
-
-# Horn-like helix layer2
-s_step = abs(s1 - s2) / steps
-s = s1
-for i in range(steps*2, steps*3):
-    verts.append((
-        (r * sin(w * s + p)),
-        (r * cos(w * s + p)),
-        (e ** s)))
-    verts.append((
-        (r2 * sin(w * s + p)),
-        (r2 * cos(w * s + p)),
-        (e ** s)))
-    cur_vert = len(verts)-1
-    if cur_vert >= 3:
-        faces.append((cur_vert-3, cur_vert-2, cur_vert, cur_vert-1))
-    # print(f"Vert added: {verts[i]}, s={s}")
-    s += s_step
+        faces.append((cur_vert-3, cur_vert-2, cur_vert, cur_vert-1)) 
 
 mesh = bpy.data.meshes.new("NoiseFilterSpiral")  # add a new mesh
 obj = bpy.data.objects.new(mesh.name, mesh)  # add a new object using the mesh
