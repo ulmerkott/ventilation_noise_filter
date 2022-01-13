@@ -16,10 +16,10 @@ bpy.ops.object.select_all(action='DESELECT')
 # Constants
 STEPS = 128 # Correlates to the number of verices (ie detail level)
 SCALE = 0.001 # mm
-D = 100.0
+THICKNESS = 1 # mm
+D = 100
 d = 45.0
 h = 25.0
-L = 17.3
 w = 2.1
 a = 8.7
 s0 = 1.0
@@ -106,20 +106,20 @@ bpy.ops.object.join()
 obj_name = bpy.context.selected_objects[0].name
 
 # Add outer cylinder
-bpy.ops.mesh.primitive_cylinder_add(vertices=STEPS, end_fill_type='NOTHING', radius=D/2/1000, depth=2*h/1000, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+bpy.ops.mesh.primitive_cylinder_add(vertices=STEPS, end_fill_type='NOTHING', radius=D/2*SCALE, depth=2*h*SCALE, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
 
 bpy.data.objects[obj_name].select_set(True)
 bpy.ops.object.join()
 obj_name = bpy.context.selected_objects[0].name
 
 # Add inner cylinder
-bpy.ops.mesh.primitive_cylinder_add(vertices=STEPS, end_fill_type='NOTHING', radius=d/2/1000, depth=2*h/1000, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+bpy.ops.mesh.primitive_cylinder_add(vertices=STEPS, end_fill_type='NOTHING', radius=d/2*SCALE, depth=2*h*SCALE, enter_editmode=False, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
 bpy.data.objects[obj_name].select_set(True)
 bpy.ops.object.join()
 
 # Set thickness for spiral
 bpy.ops.object.modifier_add(type='SOLIDIFY')
-bpy.context.object.modifiers["Solidify"].thickness = 0.001
+bpy.context.object.modifiers["Solidify"].thickness = THICKNESS / 1000
 bpy.context.object.modifiers["Solidify"].offset = 0
 
 bpy.context.object.name = "Noise_filter"
