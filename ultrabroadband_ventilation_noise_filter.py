@@ -15,12 +15,13 @@ bpy.ops.object.select_all(action='DESELECT')
 # https://www.researchgate.net/publication/349414533_Ultrabroadband_Acoustic_Ventilation_Barriers_via_Hybrid-Functional_Metasurfaces
 
 # Constants
-STEPS = 32 # Correlates to the number of verices (ie detail level)
+STEPS = 256 # Correlates to the number of verices (ie detail level)
 SCALE = 0.001 # mm
 THICKNESS = 1 # mm
 LAYERS = 8
+PARTITION_BLADES = 3
 
-D = 100 # mm
+D = 100 - THICKNESS*2 # mm, remove thickness from diameter since we use offset=1 for solidify modifier
 d = 44 # mm
 b = THICKNESS # mm
 h = 5.5 + b # mm, add b since thickness is included in the height
@@ -29,12 +30,7 @@ v = 120 # degrees
 t = 8 # degrees
 Sn = 42.3 # mm2
 
-opening_area_radians = Sn / ((d/2)*(h-b))
-
-
 mesh = bpy.data.meshes.new("NoiseFilter")  # add a new mesh
-obj = bpy.data.objects.new(mesh.name, mesh)  # add a new object using the mesh
-
 bm = bmesh.new()
 
 for layer in range(LAYERS):
@@ -71,7 +67,6 @@ for layer in range(LAYERS):
         bm.verts.new((d/2*SCALE, 0, z + h*SCALE))]
     bm.faces.new(blade_op)
 
-
     # Create blade and rotate on z axis by offset
     blade = [
         bm.verts.new((d/2*SCALE, 0, z)),
@@ -84,9 +79,8 @@ for layer in range(LAYERS):
         cent=(0,0,0),
         matrix=mathutils.Matrix.Rotation(radians(v+t*layer), 3, 'Z'))
 
-
-
 # Opening and inner cylinder
+opening_area_radians = Sn / ((d/2)*(h-b))
 inner_cylinder_e = bm.edges.new(
     [bm.verts.new((d/2*SCALE, 0, h*SCALE)),
      bm.verts.new((d/2*SCALE, 0, (-H+h)*SCALE))])
@@ -95,6 +89,37 @@ bmesh.ops.rotate(bm,
     cent=(0,0,0),
     matrix=mathutils.Matrix.Rotation(opening_area_radians, 3, 'Z'))
 
+# Spin edge to create a cylinder with an opening
+ret = bmesh.ops.spin(bm,
+    geom=list(inner_cylinder_e.verts) + [inner_cylinder_e],
+    angle=radians(360)-opening_area_radians*2,
+    steps=STEPS,
+    axis=(0,0,1),
+    cent=(0,0,0))
+
+
+# Additional cirumferential partition blades
+partition_offset = ((D/2-d/2)*SCALE) / (PARTITION_BLADES+1)
+for partition in range(1, PARTITION_BLADES+1):
+    x_offset = partition_offset * partition
+    radie = d/2*SCALE + x_offset
+    opening_area_radians = Sn / (radie*1000*(h-b))
+    partition_cylinder_e = bm.edges.new(
+        [bm.verts.new((radie, 0, h*SCALE)),
+         bm.verts.new((radie, 0, (-H+h)*SCALE))])
+    bmesh.ops.rotate(bm,
+        verts=partition_cylinder_e.verts,
+        cent=(0,0,0),
+        matrix=mathutils.Matrix.Rotation(opening_area_radians, 3, 'Z'))
+
+    # Spin edge to create a cylinder with an opening
+    ret = bmesh.ops.spin(bm,
+        geom=list(partition_cylinder_e.verts) + [partition_cylinder_e],
+        angle=radians(360)-opening_area_radians*2,
+        steps=STEPS,
+        axis=(0,0,1),
+        cent=(0,0,0))
+
 
 bm.to_mesh(mesh)
 
@@ -102,7 +127,8 @@ bpy.ops.object.select_all(action='DESELECT')
 
 
 # Add the mesh to the scene
-obj = bpy.data.objects.new("Object", mesh)
+obj = bpy.data.objects.new(mesh.name, mesh)  # add a new object using the mesh
+
 bpy.context.collection.objects.link(obj)
 
 bpy.context.view_layer.objects.active = obj
@@ -111,7 +137,7 @@ obj.select_set(True)
 # Set thickness
 bpy.ops.object.modifier_add(type='SOLIDIFY')
 bpy.context.object.modifiers["Solidify"].thickness = THICKNESS / 1000
-bpy.context.object.modifiers["Solidify"].offset = 0
+bpy.context.object.modifiers["Solidify"].offset = 1
 bpy.context.object.modifiers["Solidify"].use_even_offset = True
 
 
